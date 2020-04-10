@@ -63,7 +63,14 @@
 #include "test/cpp/util/grpc_tool.h"
 #include "test/cpp/util/test_config.h"
 
+#include <iterator>
+
 DEFINE_string(outfile, "", "Output file (default is stdout)");
+grpc::string final_result;
+
+extern "C"{
+  char *matmul(int,char **);
+}
 
 static bool SimplePrint(const grpc::string& outfile,
                         const grpc::string& output) {
@@ -74,13 +81,59 @@ static bool SimplePrint(const grpc::string& outfile,
     output_file << output << std::endl;
     output_file.close();
   }
+  final_result= output;
   return true;
+}
+
+char *matmul(int argc, char **argv) {
+ 
+  char *vec;
+  // modify argv vector
+  grpc::string a1 = "call"; 
+  grpc::string a2 = "localhost:34567";
+  grpc::string a3 = "MatMul";
+  grpc::string a4 = "tensor1_shape: \"";
+  grpc::string a5 = argv[1];
+  grpc::string a7 = argv[2];
+  
+  grpc::string a6 = "\" tensor1: ";
+  grpc::string a8 = " tensor2_shape: \"";
+  
+  grpc::string a9= argv[3];
+  grpc::string a11 = argv[4];
+
+  grpc::string a10 = "\" tensor2: ";
+  grpc::string a12 = " ";
+  
+  
+  grpc::string av = a4+a5+a6+a7+a8+a9+a10+a11+a12;
+  vec = (char *)av.c_str();
+  
+  argv[1] = (char *)a1.c_str();
+  argv[2] = (char *)a2.c_str();
+  argv[3] = (char *)a3.c_str();
+
+  argv[4] = vec;
+
+  argc = 5;
+ 
+
+  grpc::string res = "";
+  std::cout << "****Before communication with asylo matmul service" << std::endl;
+  int ret = grpc::testing::GrpcToolMainLib(
+      argc, (const char**)argv, grpc::testing::CliCredentials(),
+      std::bind(SimplePrint, FLAGS_outfile, std::placeholders::_1));
+  std::cout << "****AFTER communication with asylo matmul service" << std::endl;
+  if (ret == 0) {
+    res = "";
+  }
+  return (char* )final_result.c_str();
 }
 
 int main(int argc, char** argv) {
   grpc::testing::InitTest(&argc, &argv, true);
 
-  return grpc::testing::GrpcToolMainLib(
-      argc, (const char**)argv, grpc::testing::CliCredentials(),
-      std::bind(SimplePrint, FLAGS_outfile, std::placeholders::_1));
+  char *res;
+  res = matmul(argc,argv);
+  return 0;
 }

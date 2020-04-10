@@ -217,6 +217,7 @@ std::shared_ptr<grpc::Channel> CreateCliChannel(
   if (!cred.GetSslTargetNameOverride().empty()) {
     args.SetSslTargetNameOverride(cred.GetSslTargetNameOverride());
   }
+  args.SetCompressionAlgorithm(GRPC_COMPRESS_GZIP);
   return ::grpc::CreateCustomChannel(server_address, cred.GetCredentials(),
                                      args);
 }
@@ -320,7 +321,7 @@ bool GrpcTool::Help(int argc, const char** argv, const CliCredentials& cred,
     if (cmd == nullptr) {
       Usage("Unknown command '" + grpc::string(argv[0]) + "'");
     }
-    SetPrintCommandMode(0);
+    SetPrintCommandMode(1);
     cmd->function(this, -1, nullptr, cred, callback);
   }
   return true;
