@@ -64,18 +64,53 @@
 #include "test/cpp/util/test_config.h"
 
 #include <iterator>
+#include <pthread.h>
+
+pthread_mutex_t mutex_lock;
+
+
 
 DEFINE_string(outfile, "", "Output file (default is stdout)");
+grpc::string w_result;
+grpc::string b_result;
 grpc::string final_result;
 
 extern "C"{
   char *matmul(int,char **);
+  char *grad_w(int,char **);
+  char *grad_b(int,char **);
+}
+
+static bool wPrint(const grpc::string& outfile,
+                        const grpc::string& output) {
+  if (outfile.empty()) {
+    std::cout<<output<<std::endl;
+  } else {
+    std::ofstream output_file(outfile, std::ios::app | std::ios::binary);
+    output_file << output << std::endl;
+    output_file.close();
+  }
+  w_result= output;
+  return true;
+}
+
+static bool bPrint(const grpc::string& outfile,
+                        const grpc::string& output) {
+  if (outfile.empty()) {
+    std::cout<<output<<std::endl;
+  } else {
+    std::ofstream output_file(outfile, std::ios::app | std::ios::binary);
+    output_file << output << std::endl;
+    output_file.close();
+  }
+  b_result= output;
+  return true;
 }
 
 static bool SimplePrint(const grpc::string& outfile,
                         const grpc::string& output) {
   if (outfile.empty()) {
-    std::cout << output << std::endl;
+    std::cout<<output<<std::endl;
   } else {
     std::ofstream output_file(outfile, std::ios::app | std::ios::binary);
     output_file << output << std::endl;
@@ -86,7 +121,8 @@ static bool SimplePrint(const grpc::string& outfile,
 }
 
 char *matmul(int argc, char **argv) {
- 
+   char *arg[5];
+  arg[0]= (char*)"matmul";
   char *vec;
   // modify argv vector
   grpc::string a1 = "call"; 
@@ -109,31 +145,128 @@ char *matmul(int argc, char **argv) {
   grpc::string av = a4+a5+a6+a7+a8+a9+a10+a11+a12;
   vec = (char *)av.c_str();
   
-  argv[1] = (char *)a1.c_str();
-  argv[2] = (char *)a2.c_str();
-  argv[3] = (char *)a3.c_str();
+  arg[1] = (char *)a1.c_str();
+  arg[2] = (char *)a2.c_str();
+  arg[3] = (char *)a3.c_str();
 
-  argv[4] = vec;
+  arg[4] = vec;
 
   argc = 5;
- 
 
   grpc::string res = "";
-  std::cout << "****Before communication with asylo matmul service" << std::endl;
   int ret = grpc::testing::GrpcToolMainLib(
-      argc, (const char**)argv, grpc::testing::CliCredentials(),
+      argc, (const char**)arg, grpc::testing::CliCredentials(),
       std::bind(SimplePrint, FLAGS_outfile, std::placeholders::_1));
-  std::cout << "****AFTER communication with asylo matmul service" << std::endl;
   if (ret == 0) {
     res = "";
   }
+  
   return (char* )final_result.c_str();
 }
 
-int main(int argc, char** argv) {
-  grpc::testing::InitTest(&argc, &argv, true);
+char* grad_w(int argc, char** argv) {
+    pthread_mutex_lock(&mutex_lock);
+    char* arg[5];
+    arg[0] = (char*)"grad_w";
+    char* vec;
+    // modify argv vector
+    grpc::string a1 = "call";
+    grpc::string a2 = "localhost:45678";
+    grpc::string a3 = "GetGrad_W";
+    grpc::string a4 = "tensor1_shape: \"";
+    grpc::string a5 = argv[1];
+    grpc::string a7 = argv[2];
 
+    grpc::string a6 = "\" tensor1: ";
+    grpc::string a8 = " tensor2_shape: \"";
+
+    grpc::string a9 = argv[3];
+    grpc::string a11 = argv[4];
+
+    grpc::string a10 = "\" tensor2: ";
+    grpc::string a12 = " ";
+
+    grpc::string av = a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12;
+    vec = (char*)av.c_str();
+
+    arg[1] = (char*)a1.c_str();
+    arg[2] = (char*)a2.c_str();
+    arg[3] = (char*)a3.c_str();
+
+    arg[4] = vec;
+
+    argc = 5;
+
+    grpc::string res = "";
+    int ret = grpc::testing::GrpcToolMainLib(
+        argc, (const char**)arg, grpc::testing::CliCredentials(),
+        std::bind(wPrint, FLAGS_outfile, std::placeholders::_1));
+    if (ret == 0) {
+      res = "";
+    }
+  pthread_mutex_unlock(&mutex_lock);
+  return (char*)w_result.c_str();
+}
+
+char *grad_b(int argc, char **argv) {
+  char* arg[5];
+  arg[0] = (char*)"grad_b";
+  char* vec;
+  // modify argv vector
+  grpc::string a1 = "call";
+  grpc::string a2 = "localhost:56789";
+  grpc::string a3 = "GetGrad_b";
+  grpc::string a4 = "tensor1_shape: \"";
+  grpc::string a5 = argv[1];
+  grpc::string a7 = argv[2];
+
+  grpc::string a6 = "\" tensor1: ";
+  grpc::string a8 = " tensor2_shape: \"";
+
+  grpc::string a9 = argv[3];
+  grpc::string a11 = argv[4];
+
+  grpc::string a10 = "\" tensor2: ";
+  grpc::string a12 = " ";
+
+  grpc::string av = a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12;
+  vec = (char*)av.c_str();
+
+  arg[1] = (char*)a1.c_str();
+  arg[2] = (char*)a2.c_str();
+  arg[3] = (char*)a3.c_str();
+
+  arg[4] = vec;
+
+  argc = 5;
+
+  grpc::string res = "";
+  int ret = grpc::testing::GrpcToolMainLib(
+      argc, (const char**)arg, grpc::testing::CliCredentials(),
+      std::bind(bPrint, FLAGS_outfile, std::placeholders::_1));
+  if (ret == 0) {
+    res = "";
+  }
+  return (char*)b_result.c_str();
+}
+
+int main(int argc, char** arg2) {
+  
+  char *argv[5];
+  argv[0] = (char*)"MatMul";
+  argv[1] = (char*)"[1,2]";
+  argv[2] = (char*)"[1,1]";
+  argv[3] = (char*)"[1]";
+  argv[4] = (char*)"[0]";
   char *res;
-  res = matmul(argc,argv);
+  res = matmul(5,argv);
+
+
+  argv[0] = (char*)"GetGrad_W";
+  res = grad_w(5,argv);
+
+  argv[0] = (char*)"GetGrad_b";
+  res = grad_b(5,argv);
+
   return 0;
 }
